@@ -88,30 +88,4 @@ mcp_for_semantic_segmentation/
 └── README.md                      # このファイル
 ```
 
-## 開発
 
-### テストの実行
-
-```bash
-pytest
-```
-
-### コードフォーマット
-
-```bash
-black src/
-```
-
-### リンティング
-
-```bash
-flake8 src/
-```
-
-## ライセンス
-
-MIT License
-
-## 貢献
-
-プルリクエストやイシューの報告を歓迎します。
