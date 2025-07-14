@@ -1,0 +1,21 @@
+{
+    "recommendations": [
+        "hookyqr.beautify",
+        "coenraads.bracket-pair-colorizer",
+        "editorconfig.editorconfig",
+        "mhutchie.git-graph",
+        "eamodio.gitlens",
+        "trixnz.go-to-method",
+        "oderwat.indent-rainbow",
+        "christian-kohler.path-intellisense",
+        "ms-python.vscode-pylance",
+        "ms-python.python",
+        "njpwerner.autodocstring",
+        "njqdev.vscode-python-typehint",
+        "visualstudioexptteam.vscodeintellicode",
+        "mosapride.zenkaku",
+        "pkief.material-icon-theme"
+    ]
+}
+
+

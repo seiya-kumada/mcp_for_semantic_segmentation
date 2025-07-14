@@ -1,0 +1,62 @@
+{
+    "[python]": {
+        "editor.tabSize": 4,
+        "editor.formatOnSave": true,
+        "editor.formatOnPaste": false,
+        "editor.formatOnType": false,
+        "editor.insertSpaces": true,
+        "editor.codeActionsOnSave": {
+            "source.organizeImports": "explicit"
+        },
+        "editor.defaultFormatter": "ms-python.black-formatter",
+    },
+    "python.languageServer": "Pylance",
+    "python.envFile": "${workspaceFolder}/.env",
+    "autoDocstring.docstringFormat": "google",
+    "black-formatter.args": [
+        "--line-length=119"
+    ],
+    "flake8.severity": {
+        "E": "Warning",
+        "F": "Warning"
+    },
+    "flake8.args": [
+        "--max-line-length=119",
+        "--ignore=E203,W503,E231,W605"
+    ],
+    "mypy-type-checker.severity": {
+        "error": "Information"
+    },
+    "mypy-type-checker.args": [
+        "--allow-redefinition",
+        "--check-untyped-defs",
+        "--color-output",
+        "--disallow-incomplete-defs",
+        "--disallow-untyped-defs",
+        "--ignore-missing-imports",
+        "--implicit-reexport",
+        "--namespace-packages",
+        "--no-implicit-optional",
+        "--pretty",
+        "--show-column-numbers",
+        "--show-error-codes",
+        "--show-error-context",
+        "--show-traceback",
+        "--strict",
+        "--warn-no-return",
+        "--warn-redundant-casts",
+        "--warn-return-any",
+        "--warn-unreachable",
+        "--warn-unused-ignores",
+        "--warn-unused-configs",
+    ],
+    "python.analysis.typeCheckingMode": "basic",
+    "python.analysis.autoImportCompletions": true,
+    "isort.args": [
+        "--profile",
+        "black"
+    ],
+    "files.insertFinalNewline": true,
+    "files.trimTrailingWhitespace": true,
+    "dev.containers.executeInWSL": true,
+}
