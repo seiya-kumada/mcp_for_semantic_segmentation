@@ -2,7 +2,7 @@ import json
 import os
 import time
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple, Union
 
 import cv2
 import numpy as np
@@ -17,6 +17,16 @@ class SemanticSegmenter:
     IMAGE_SIZE = (520, 520)
     NORMALIZE_MEAN = [0.485, 0.456, 0.406]
     NORMALIZE_STD = [0.229, 0.224, 0.225]
+    
+    # ファイル制限の定数
+    MAX_FILE_SIZE_MB = 10
+    MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024
+    
+    # サポートされる画像形式
+    SUPPORTED_FORMATS = {".jpg", ".jpeg", ".png", ".bmp", ".tiff"}
+    
+    # 処理時間の小数点桁数
+    PROCESSING_TIME_PRECISION = 2
     
     def __init__(self, device: str = "auto"):
         """SemanticSegmenterの初期化
@@ -65,7 +75,7 @@ class SemanticSegmenter:
         """事前学習済みDeepLabV3モデルをロード
 
         モデルを初期化し指定されたデバイスに配置し評価モードに設定する。
-        データ変換パイプラインを初期化する。
+        さらに、データ変換パイプラインを初期化する。
 
         Raises:
             RuntimeError: モデルの読み込みまたは初期化に失敗した場合
@@ -74,19 +84,48 @@ class SemanticSegmenter:
             self.model = deeplabv3_resnet50(pretrained=True)
             self.model.to(self.device)
             self.model.eval()
-
-            self.transform = transforms.Compose(
-                [
-                    transforms.Resize(self.IMAGE_SIZE),
-                    transforms.ToTensor(),
-                    transforms.Normalize(mean=self.NORMALIZE_MEAN, std=self.NORMALIZE_STD),
-                ]
-            )
+            
+            self._initialize_transform()
         except Exception as e:
             raise RuntimeError(f"モデル読み込みエラー: {str(e)}")
+    
+    def _initialize_transform(self) -> None:
+        """データ変換パイプラインの初期化
+        
+        画像の前処理用の変換パイプラインを設定する。
+        リサイズ、テンソル変換、正規化を含む。
+        """
+        self.transform = transforms.Compose(
+            [
+                transforms.Resize(self.IMAGE_SIZE),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=self.NORMALIZE_MEAN, std=self.NORMALIZE_STD),
+            ]
+        )
 
     def process_image(self, image_path: str, output_dir: str) -> Dict[str, Any]:
-        """画像のセマンティックセグメンテーションを実行"""
+        """画像のセマンティックセグメンテーションを実行
+        
+        指定された画像に対してセマンティックセグメンテーションを実行し、
+        結果画像とメタデータを保存する。
+        
+        Args:
+            image_path: 入力画像のパス
+            output_dir: 結果を保存するディレクトリ
+            
+        Returns:
+            処理結果を含む辞書:
+            - status: "success" または "error"
+            - output_path: 生成された結果画像のパス（成功時）
+            - json_path: 生成されたJSONファイルのパス（成功時）
+            - processing_time: 処理時間（秒）（成功時）
+            - input_size: 入力画像サイズ（成功時）
+            - output_size: 出力画像サイズ（成功時）
+            - detected_classes: 検出されたクラス情報（成功時）
+            - total_pixels: 総ピクセル数（成功時）
+            - error_message: エラーメッセージ（エラー時）
+            - error_code: エラーコード（エラー時）
+        """
         start_time = time.time()
 
         try:
@@ -106,39 +145,92 @@ class SemanticSegmenter:
             json_path = self._save_segmentation_json(output_path, stats, original_size, output_dir)
 
             processing_time = time.time() - start_time
-
-            return {
-                "status": "success",
-                "output_path": output_path,
-                "json_path": json_path,
-                "processing_time": round(processing_time, 2),
-                "input_size": f"{original_size[0]}x{original_size[1]}",
-                "output_size": f"{original_size[0]}x{original_size[1]}",
-                "detected_classes": stats["detected_classes"],
-                "total_pixels": stats["total_pixels"],
-            }
+            return self._create_success_response(output_path, json_path, processing_time, original_size, stats)
 
         except Exception as e:
-            return {"status": "error", "error_message": str(e), "error_code": self._get_error_code(e)}
+            return self._create_error_response(e)
+    
+    def _create_success_response(self, output_path: str, json_path: str, processing_time: float, 
+                               original_size: Tuple[int, int], stats: Dict[str, Any]) -> Dict[str, Union[str, float, int, list]]:
+        """成功時のレスポンスを生成
+        
+        Args:
+            output_path: 生成された結果画像のパス
+            json_path: 生成されたJSONファイルのパス
+            processing_time: 処理時間（秒）
+            original_size: 元画像のサイズ
+            stats: セグメンテーション統計情報
+            
+        Returns:
+            成功レスポンス辞書
+        """
+        return {
+            "status": "success",
+            "output_path": output_path,
+            "json_path": json_path,
+            "processing_time": round(processing_time, self.PROCESSING_TIME_PRECISION),
+            "input_size": f"{original_size[0]}x{original_size[1]}",
+            "output_size": f"{original_size[0]}x{original_size[1]}",
+            "detected_classes": stats["detected_classes"],
+            "total_pixels": stats["total_pixels"],
+        }
+    
+    def _create_error_response(self, error: Exception) -> Dict[str, str]:
+        """エラー時のレスポンスを生成
+        
+        Args:
+            error: 発生した例外
+            
+        Returns:
+            エラーレスポンス辞書
+        """
+        return {
+            "status": "error",
+            "error_message": str(error),
+            "error_code": self._get_error_code(error)
+        }
 
     def _load_and_validate_image(self, image_path: str) -> Tuple[Image.Image, Tuple[int, int]]:
-        """画像の読み込みと検証"""
-        if not os.path.exists(image_path):
+        """画像の読み込みと検証
+        
+        指定された画像ファイルを読み込み、ファイルサイズと形式を検証する。
+        検証に成功した場合、RGB形式に変換した画像とそのサイズを返す。
+        
+        Args:
+            image_path: 読み込む画像ファイルのパス
+            
+        Returns:
+            読み込んだ画像とサイズのタプル:
+            - Image.Image: RGB形式に変換された画像
+            - Tuple[int, int]: 元画像のサイズ（幅、高さ）
+            
+        Raises:
+            FileNotFoundError: 指定された画像ファイルが見つからない場合
+            ValueError: ファイルサイズが制限を超える、サポートされていない形式、
+                       または画像が破損している場合
+        """
+        image_path_obj = Path(image_path)
+        
+        # ファイル存在チェック
+        if not image_path_obj.exists():
             raise FileNotFoundError("画像ファイルが見つかりません")
+        
+        # ファイル種別チェック
+        if not image_path_obj.is_file():
+            raise ValueError("指定されたパスはファイルではありません")
 
-        # ファイルサイズチェック（10MB制限）
-        file_size = os.path.getsize(image_path)
-        if file_size > 10 * 1024 * 1024:
+        # ファイルサイズチェック
+        file_size = image_path_obj.stat().st_size
+        if file_size > self.MAX_FILE_SIZE_BYTES:
             raise ValueError("ファイルサイズが10MBを超えています")
 
         # 画像形式チェック
-        supported_formats = {".jpg", ".jpeg", ".png", ".bmp", ".tiff"}
-        file_ext = Path(image_path).suffix.lower()
-        if file_ext not in supported_formats:
+        file_ext = image_path_obj.suffix.lower()
+        if file_ext not in self.SUPPORTED_FORMATS:
             raise ValueError("サポートされていない画像形式です")
 
         try:
-            image = Image.open(image_path).convert("RGB")
+            image = Image.open(image_path_obj).convert("RGB")
             original_size = image.size
             return image, original_size
         except Exception:
