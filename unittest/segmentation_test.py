@@ -2,14 +2,15 @@ import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import numpy as np
 import pytest
-
-from src.segmentation import SemanticSegmenter
-
-# import torch
+import torch
+from PIL import Image
 
 # プロジェクトルートをパスに追加
 sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from src.segmentation import SemanticSegmenter
 
 
 class TestSemanticSegmenterInit:
@@ -145,6 +146,86 @@ class TestInitializeTransform:
         assert transforms[0].__class__.__name__ == "Resize"
         assert transforms[1].__class__.__name__ == "ToTensor"
         assert transforms[2].__class__.__name__ == "Normalize"
+
+
+class TestSegmentImage:
+    """_segment_imageメソッドのテスト"""
+
+    @patch("src.segmentation.deeplabv3_resnet50")
+    def test_segment_image_success(self, mock_deeplabv3):
+        """正常なセグメンテーション実行のテスト"""
+        # モックモデルの設定
+        mock_model = MagicMock()
+        mock_output = MagicMock()
+        mock_output.squeeze.return_value = torch.zeros(21, 520, 520)  # ダミーの出力（21クラス）
+        mock_model.return_value = {"out": mock_output}
+        mock_deeplabv3.return_value = mock_model
+
+        segmenter = SemanticSegmenter(device="cpu")
+        
+        # テスト用のPIL画像を作成
+        test_image = Image.fromarray(np.zeros((100, 100, 3), dtype=np.uint8))
+        
+        # セグメンテーション実行
+        result = segmenter._segment_image(test_image)
+        
+        # 結果の検証
+        assert isinstance(result, np.ndarray)
+        assert result.shape == (520, 520)
+        mock_model.assert_called_once()
+
+    @patch("src.segmentation.deeplabv3_resnet50")
+    def test_segment_image_model_not_initialized(self, mock_deeplabv3):
+        """モデルが初期化されていない場合のテスト"""
+        mock_deeplabv3.return_value = MagicMock()
+        
+        segmenter = SemanticSegmenter(device="cpu")
+        segmenter.model = None  # モデルを無効化
+        
+        test_image = Image.fromarray(np.zeros((100, 100, 3), dtype=np.uint8))
+        
+        with pytest.raises(RuntimeError) as exc_info:
+            segmenter._segment_image(test_image)
+        assert "Model is not initialized" in str(exc_info.value)
+
+    @patch("src.segmentation.deeplabv3_resnet50")
+    def test_segment_image_transform_not_initialized(self, mock_deeplabv3):
+        """変換パイプラインが初期化されていない場合のテスト"""
+        mock_deeplabv3.return_value = MagicMock()
+        
+        segmenter = SemanticSegmenter(device="cpu")
+        segmenter.transform = None  # 変換パイプラインを無効化
+        
+        test_image = Image.fromarray(np.zeros((100, 100, 3), dtype=np.uint8))
+        
+        with pytest.raises(RuntimeError) as exc_info:
+            segmenter._segment_image(test_image)
+        assert "Transform pipeline is not initialized" in str(exc_info.value)
+
+    @patch("src.segmentation.deeplabv3_resnet50")
+    def test_segment_image_tensor_operations(self, mock_deeplabv3):
+        """テンソル操作が正しく行われることを確認"""
+        mock_model = MagicMock()
+        
+        # モックの出力テンソルを設定
+        mock_tensor = torch.ones(1, 21, 520, 520)  # 21クラス、520x520
+        mock_output = MagicMock()
+        mock_output.squeeze.return_value = mock_tensor.squeeze(0)
+        mock_model.return_value = {"out": mock_output}
+        mock_deeplabv3.return_value = mock_model
+
+        segmenter = SemanticSegmenter(device="cpu")
+        
+        test_image = Image.fromarray(np.zeros((100, 100, 3), dtype=np.uint8))
+        
+        with patch("torch.argmax") as mock_argmax:
+            mock_argmax.return_value.cpu.return_value.numpy.return_value = np.zeros((520, 520))
+            
+            result = segmenter._segment_image(test_image)
+            
+            # torch.argmaxが正しく呼ばれることを確認
+            mock_argmax.assert_called_once()
+            assert isinstance(result, np.ndarray)
 
 
 class TestConstants:

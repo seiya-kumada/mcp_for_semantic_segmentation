@@ -237,7 +237,25 @@ class SemanticSegmenter:
             raise ValueError("画像ファイルが破損しているか、読み込めません")
 
     def _segment_image(self, image: Image.Image) -> np.ndarray:
-        """セグメンテーションの実行"""
+        """セグメンテーションの実行
+        
+        PIL画像に対してセマンティックセグメンテーションを実行し、
+        各ピクセルのクラス予測を含む配列を返す。
+        
+        Args:
+            image: セグメンテーションを実行するPIL画像
+            
+        Returns:
+            各ピクセルのクラスIDを含むnumpy配列 (H, W)
+            
+        Raises:
+            RuntimeError: モデルまたは変換パイプラインが初期化されていない場合
+        """
+        if self.model is None:
+            raise RuntimeError("Model is not initialized")
+        if self.transform is None:
+            raise RuntimeError("Transform pipeline is not initialized")
+            
         with torch.no_grad():
             # 前処理
             input_tensor = self.transform(image).unsqueeze(0).to(self.device)
