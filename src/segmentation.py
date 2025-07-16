@@ -14,6 +14,12 @@ import cv2
 
 class SemanticSegmenter:
     def __init__(self, device: str = "auto"):
+        """SemanticSegmenterの初期化
+        
+        Args:
+            device: 使用するデバイス ("auto", "cuda", "cpu")
+                   "auto"の場合はCUDAが利用可能ならCUDA、そうでなければCPUを使用
+        """
         self.device = self._get_device(device)
         self.model = None
         self.transform = None
